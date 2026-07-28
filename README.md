@@ -1,4 +1,4 @@
-# 🎓  API Bacc Madagascar - REST API
+# 🎓 API Bacc Madagascar - REST API
 
 API REST pour consulter les résultats du Baccalauréat à Madagascar, basée sur les APIs officielles de [bacc.digital.gov.mg](https://bacc.digital.gov.mg/).
 
@@ -17,7 +17,6 @@ python server.py
 ## 📡 Endpoints
 
 ### 🔍 Rechercher des résultats
-
 ```
 GET /api/bacc/recherche?nom=RAKOTOMALALA Miora&province=antsiranana
 GET /api/bacc/recherche?matricule=1340023&province=mahajanga
@@ -30,9 +29,9 @@ GET /api/bacc/recherche?matricule=1340023&province=mahajanga
 | `matricule` | Numéro d'inscription | `1340023` |
 | `province` | Code province | `antsiranana`, `mahajanga`, `toliara`, `toamasina` |
 
-> ⟨️ Si les deux sont fournis, `matricule` est prioritaire.
+> ⚠️ Si les deux sont fournis, `matricule` est prioritaire.
 
-### 📉 Réponse type
+### 📋 Réponse type
 ```json
 {
   "status": "OK",
@@ -55,27 +54,27 @@ GET /api/bacc/recherche?matricule=1340023&province=mahajanga
 }
 ```
 
-### 🗾️ Provinces disponibles
+### 🗺️ Provinces disponibles
 ```
 GET /api/bacc/provinces
 ```
 
-## 📳 Provinces supportées
+## 🏛️ Provinces supportées
 
 | Province | Code | Statut |
-|----------|------|-------|
-| Antsiranana (Diego) | `antsiranana` | 𜅅 Disponible |
-| Mahajanga | `mahajanga` | 𜅅 Disponible |
-| Toliara | `toliara` | 𜅅 Disponible |
-| Toamasina | `toamasina` | ⬠️ Redirigé vers Mahajanga |
-| Fianarantsoa | `fianarantsoa` | ❌️ Site externe |
-| Antananarivo | `antananarivo` | ❌️ Non disponible |
+|----------|------|--------|
+| Antsiranana (Diego) | `antsiranana` | ✅ Disponible |
+| Mahajanga | `mahajanga` | ✅ Disponible |
+| Toliara | `toliara` | ✅ Disponible |
+| Toamasina | `toamasina` | ⚠️ Redirigé vers Mahajanga |
+| Fianarantsoa | `fianarantsoa` | ❌ Site externe |
+| Antananarivo | `antananarivo` | ❌ Non disponible |
 
 ## 🔧 Fonctionnement
 
 L'API agit comme un **proxy** entre votre application et les APIs officielles de chaque province :
 
-1. Elle rerçoit votre req�ïte de recherche
+1. Elle reçoit votre requête de recherche
 2. Génère automatiquement la clé MD5 requise (`MD5("UGD2024" + searchTerm)`)
 3. Interroge l'API de la province correspondante
 4. Enrichit et retourne les résultats
@@ -83,7 +82,7 @@ L'API agit comme un **proxy** entre votre application et les APIs officielles de
 ### APIs sources
 
 | Province | URL API |
-|----------|-------|
+|----------|---------|
 | Antsiranana | `https://diego-api.bacc.digital.gov.mg/api/search` |
 | Mahajanga | `https://mahajanga-api.bacc.digital.gov.mg/api/search` |
 | Toliara | `https://bacc.toliara.digital.gov.mg/api/search` |
@@ -96,13 +95,14 @@ vercel --prod
 
 La configuration `vercel.json` est déjà incluse.
 
-## 💑 Structure du projet
+## 📝 Structure du projet
 
 ```
 bacc-api/
-✜── server.py          # API principale (Flask)
-✜── requirements.txt   # Dépendances Python�眜── vercel.json        # Configuration Vercel
+├── server.py          # API principale (Flask)
+├── requirements.txt   # Dépendances Python
+├── vercel.json        # Configuration Vercel
 ├── api/
 │   └── index.py       # Point d'entrée WSGI
 └── README.md
-`h
+```
