@@ -178,15 +178,47 @@ def index():
         "description": "API pour consulter les résultats du Baccalauréat à Madagascar",
         "source": "https://bacc.digital.gov.mg/",
         "endpoints": {
-            "GET /api/bacc/recherche": "Rechercher par nom ou matricule",
+            "GET /api/bacc/recherche": "Rechercher par nom ou matricule (avec pagination page/per_page)",
             "GET /api/bacc/provinces": "Lister les provinces disponibles",
         },
         "exemples": {
             "par_nom": "/api/bacc/recherche?nom=Miora&province=fianarantsoa",
             "par_matricule": "/api/bacc/recherche?matricule=1260219&province=fianarantsoa",
+            "pagination": "/api/bacc/recherche?nom=Miora&province=fianarantsoa&page=2&per_page=10",
         },
         "provinces_disponibles": list(PROVINCE_APIS.keys()),
     })
+
+
+def paginate_results(results: list, page: int, per_page: int) -> dict:
+    """Découpe une liste de résultats et retourne les métadonnées de pagination."""
+    total = len(results)
+    if per_page <= 0:
+        per_page = 15
+    total_pages = max(1, (total + per_page - 1) // per_page)
+
+    if page < 1:
+        page = 1
+    if page > total_pages:
+        page = total_pages
+
+    start = (page - 1) * per_page
+    end = start + per_page
+    page_items = results[start:end]
+
+    return {
+        "items": page_items,
+        "pagination": {
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "total_pages": total_pages,
+            "has_next": page < total_pages,
+            "has_prev": page > 1,
+            "next_page": page + 1 if page < total_pages else None,
+            "prev_page": page - 1 if page > 1 else None,
+        },
+    }
 
 
 @app.route("/api/bacc/recherche")
@@ -194,6 +226,16 @@ def recherche():
     nom = request.args.get("nom", "").strip()
     matricule = request.args.get("matricule", "").strip()
     province = request.args.get("province", "").strip().lower()
+    try:
+        page = int(request.args.get("page", 1) or 1)
+    except ValueError:
+        page = 1
+    try:
+        per_page = int(request.args.get("per_page", 15) or 15)
+    except ValueError:
+        per_page = 15
+    if per_page > 100:
+        per_page = 100
 
     if not province:
         return jsonify({
@@ -227,7 +269,17 @@ def recherche():
             search_term = normalize_name(nom)
         mode = "nom"
 
-    return jsonify(search_bacc(province, search_term, mode))
+    result = search_bacc(province, search_term, mode)
+
+    # Appliquer la pagination si la recherche a réussi
+    if result.get("status") == "OK" and isinstance(result.get("results"), list):
+        paginated = paginate_results(result["results"], page, per_page)
+        # Remplacer 'count' (nombre de résultats de la source) par le total réel paginé
+        result["count"] = len(result["results"])
+        result["results"] = paginated["items"]
+        result["pagination"] = paginated["pagination"]
+
+    return jsonify(result)
 
 
 @app.route("/api/bacc/provinces")
