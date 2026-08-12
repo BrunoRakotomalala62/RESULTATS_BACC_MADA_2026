@@ -1,6 +1,6 @@
 # 🎓 API Bacc Madagascar - REST API
 
-API REST pour consulter les résultats du Baccalauréat à Madagascar, basée sur les APIs officielles de [bacc.digital.gov.mg](https://bacc.digital.gov.mg/).
+API REST pour consulter les résultats du Baccalauréat à Madagascar, basée sur les APIs officielles de [bacc.digital.gov.mg](https://bacc.digital.gov.mg/) et [bacc.univ-fianarantsoa.mg](https://bacc.univ-fianarantsoa.mg/).
 
 ## 🚀 Démarrage rapide
 
@@ -20,33 +20,34 @@ python server.py
 ```
 GET /api/bacc/recherche?nom=RAKOTOMALALA Miora&province=antsiranana
 GET /api/bacc/recherche?matricule=1340023&province=mahajanga
+GET /api/bacc/recherche?nom=Miora&province=fianarantsoa
+GET /api/bacc/recherche?matricule=1260219&province=fianarantsoa
 ```
 
 **Paramètres :**
 | Paramètre | Description | Exemple |
 |-----------|-------------|---------|
-| `nom` | Nom et prénom du candidat | `RAKOTOMALALA Miora` |
-| `matricule` | Numéro d'inscription | `1340023` |
-| `province` | Code province | `antsiranana`, `mahajanga`, `toliara`, `toamasina` |
+| `nom` | Nom et prénom du candidat | `Miora` |
+| `matricule` | Numéro d'inscription | `1260219` |
+| `province` | Code province | `antsiranana`, `mahajanga`, `toliara`, `toamasina`, `fianarantsoa` |
 
 > ⚠️ Si les deux sont fournis, `matricule` est prioritaire.
 
-### 📋 Réponse type
+### 📋 Réponse type (Fianarantsoa)
 ```json
 {
   "status": "OK",
-  "province": "mahajanga",
-  "mode": "matricule",
-  "search_term": "1340023",
-  "count": 1,
+  "province": "fianarantsoa",
+  "mode": "nom",
+  "search_term": "Miora",
+  "count": 68,
   "results": [
     {
-      "id": 24,
-      "matricule": "1340023",
-      "fullname": "RAKOTOVAZAHA Germinah Aimela",
+      "matricule": "1260219",
+      "fullname": "MIORA Niaina",
       "serie": "A1",
       "mention": "Passable",
-      "center": "MAHAJANGA I",
+      "center": "FIANARANTSOA 301",
       "admis": 1,
       "admis_label": "Admis(e)"
     }
@@ -67,7 +68,7 @@ GET /api/bacc/provinces
 | Mahajanga | `mahajanga` | ✅ Disponible |
 | Toliara | `toliara` | ✅ Disponible |
 | Toamasina | `toamasina` | ⚠️ Redirigé vers Mahajanga |
-| Fianarantsoa | `fianarantsoa` | ❌ Site externe |
+| Fianarantsoa | `fianarantsoa` | ✅ Disponible |
 | Antananarivo | `antananarivo` | ❌ Non disponible |
 
 ## 🔧 Fonctionnement
@@ -75,7 +76,7 @@ GET /api/bacc/provinces
 L'API agit comme un **proxy** entre votre application et les APIs officielles de chaque province :
 
 1. Elle reçoit votre requête de recherche
-2. Génère automatiquement la clé MD5 requise (`MD5("UGD2024" + searchTerm)`)
+2. Génère automatiquement la clé MD5 requise (`MD5("UGD2024" + searchTerm)`) pour les provinces `bacc.digital.gov.mg`
 3. Interroge l'API de la province correspondante
 4. Enrichit et retourne les résultats
 
@@ -86,6 +87,12 @@ L'API agit comme un **proxy** entre votre application et les APIs officielles de
 | Antsiranana | `https://diego-api.bacc.digital.gov.mg/api/search` |
 | Mahajanga | `https://mahajanga-api.bacc.digital.gov.mg/api/search` |
 | Toliara | `https://bacc.toliara.digital.gov.mg/api/search` |
+| Fianarantsoa | `https://bacc.univ-fianarantsoa.mg/api/search/{type}/{terme}` où `{type}` = `name` ou `num` |
+
+> ℹ️ **Note sur Fianarantsoa** : L'API de l'Université de Fianarantsoa utilise un format différent :
+> - Recherche par nom : `GET /api/search/name/{nom}` (sensible à la casse)
+> - Recherche par matricule : `GET /api/search/num/{num}`
+> - Réponse brute : `{"count": N, "bacc": [{num, nom, mention, serie, centre, resultat}]}`
 
 ## 📦 Déploiement Vercel
 
