@@ -25,6 +25,7 @@ PROVINCE_APIS = {
     "mahajanga":   "https://mahajanga-api.bacc.digital.gov.mg/api",
     "toamasina":   "https://mahajanga-api.bacc.digital.gov.mg/api",
     "toliara":     "https://bacc.toliara.digital.gov.mg/api",
+    "fianarantsoa":"https://bacc.univ-fianarantsoa.mg/api",
 }
 
 PROVINCE_INFO = {
@@ -32,7 +33,7 @@ PROVINCE_INFO = {
     "mahajanga":   {"nom": "Mahajanga",             "universite": "Oniversite Mahajanga",     "disponible": True},
     "toamasina":   {"nom": "Toamasina",             "universite": "Oniversite Toamasina",     "disponible": False, "note": "Redirigé vers Mahajanga"},
     "toliara":     {"nom": "Toliara",               "universite": "Oniversite Toliara",       "disponible": True},
-    "fianarantsoa":{"nom": "Fianarantsoa",          "universite": "Oniversite Fianarantsoa",  "disponible": False, "note": "Site externe"},
+    "fianarantsoa":{"nom": "Fianarantsoa",          "universite": "Oniversite Fianarantsoa",  "disponible": True},
     "antananarivo":{"nom": "Antananarivo",          "universite": "Oniversite Antananarivo",  "disponible": False, "note": "Non disponible"},
 }
 
@@ -63,10 +64,69 @@ def normalize_name(name: str) -> str:
     return " ".join(name.strip().upper().split())
 
 
+def search_fianarantsoa(search_term: str, mode: str = "nom") -> dict:
+    """
+    Interroge l'API de l'Université de Fianarantsoa.
+
+    L'API source est différente des autres provinces :
+      - GET https://bacc.univ-fianarantsoa.mg/api/search/name/{nom}
+      - GET https://bacc.univ-fianarantsoa.mg/api/search/num/{num}
+
+    Réponse brute :
+      {"count": 68, "bacc": [{"num", "nom", "mention", "serie", "centre", "resultat"}]}
+    """
+    endpoint = "num" if mode == "matricule" else "name"
+    url = f"{PROVINCE_APIS['fianarantsoa']}/search/{endpoint}/{search_term}"
+
+    try:
+        resp = session.get(url, timeout=30)
+        resp.raise_for_status()
+        data = resp.json()
+
+        count = data.get("count", 0)
+        raw_results = data.get("bacc", [])
+
+        results = []
+        for r in raw_results:
+            resultat = r.get("resultat", "")
+            admis = 1 if resultat in ("Admis(e)", "Admis") else 0
+            results.append({
+                "matricule": r.get("num"),
+                "fullname": r.get("nom"),
+                "serie": r.get("serie"),
+                "mention": r.get("mention"),
+                "center": r.get("centre"),
+                "admis": admis,
+                "admis_label": resultat,
+            })
+
+        return {
+            "status": "OK",
+            "province": "fianarantsoa",
+            "mode": mode,
+            "search_term": search_term,
+            "count": count,
+            "results": results,
+            "source_message": data.get("message"),
+        }
+    except requests.exceptions.Timeout:
+        return {"error": "Timeout - L'API source ne répond pas", "status": "ERROR"}
+    except requests.exceptions.ConnectionError:
+        return {"error": "Impossible de se connecter à l'API source", "status": "ERROR"}
+    except requests.exceptions.HTTPError as e:
+        return {"error": f"Erreur HTTP {e.response.status_code}", "status": "ERROR"}
+    except Exception as e:
+        return {"error": str(e), "status": "ERROR"}
+
+
 def search_bacc(province: str, search_term: str, mode: str = "nom") -> dict:
     """Effectue une recherche dans l'API du Baccalauréat."""
     if province not in PROVINCE_APIS:
         return {"error": f"Province inconnue: {province}", "status": "ERROR"}
+
+    # Fianarantsoa a son propre format d'API
+    if province == "fianarantsoa":
+        return search_fianarantsoa(search_term, mode)
 
     api_base = PROVINCE_APIS[province]
     key = generate_key(search_term)
@@ -114,7 +174,7 @@ def search_bacc(province: str, search_term: str, mode: str = "nom") -> dict:
 def index():
     return jsonify({
         "api": "Bacc Madagascar - API REST",
-        "version": "1.0.0",
+        "version": "1.1.0",
         "description": "API pour consulter les résultats du Baccalauréat à Madagascar",
         "source": "https://bacc.digital.gov.mg/",
         "endpoints": {
@@ -122,8 +182,8 @@ def index():
             "GET /api/bacc/provinces": "Lister les provinces disponibles",
         },
         "exemples": {
-            "par_nom": "/api/bacc/recherche?nom=RAKOTOMALALA%20Miora&province=antsiranana",
-            "par_matricule": "/api/bacc/recherche?matricule=1340023&province=mahajanga",
+            "par_nom": "/api/bacc/recherche?nom=Miora&province=fianarantsoa",
+            "par_matricule": "/api/bacc/recherche?matricule=1260219&province=fianarantsoa",
         },
         "provinces_disponibles": list(PROVINCE_APIS.keys()),
     })
@@ -153,14 +213,18 @@ def recherche():
         return jsonify({
             "status": "ERROR",
             "error": "Paramètre 'nom' ou 'matricule' requis",
-            "exemple": "/api/bacc/recherche?nom=RAKOTOMALALA Miora&province=antsiranana"
+            "exemple": "/api/bacc/recherche?nom=Miora&province=fianarantsoa"
         }), 400
 
     if matricule:
         search_term = matricule.strip()
         mode = "matricule"
     else:
-        search_term = normalize_name(nom)
+        if province == "fianarantsoa":
+            # L'API de Fianarantsoa est sensible à la casse : on conserve le nom tel quel
+            search_term = " ".join(nom.strip().split())
+        else:
+            search_term = normalize_name(nom)
         mode = "nom"
 
     return jsonify(search_bacc(province, search_term, mode))
