@@ -1,6 +1,6 @@
 # 🎓 API Bacc Madagascar - REST API
 
-API REST pour consulter les résultats du Baccalauréat à Madagascar, basée sur les APIs officielles de [bacc.digital.gov.mg](https://bacc.digital.gov.mg/) et [bacc.univ-fianarantsoa.mg](https://bacc.univ-fianarantsoa.mg/).
+API REST pour consulter les résultats du Baccalauréat à Madagascar, basée sur les APIs officielles des universités et du portail national. La source Antananarivo est récupérée depuis la page officielle de l'[Université d’Antananarivo](https://www.univ-antananarivo.mg/resultats-bac).
 
 ## 🚀 Démarrage rapide
 
@@ -22,6 +22,7 @@ GET /api/bacc/recherche?nom=RAKOTOMALALA Miora&province=antsiranana
 GET /api/bacc/recherche?matricule=1340023&province=mahajanga
 GET /api/bacc/recherche?nom=Miora&province=fianarantsoa
 GET /api/bacc/recherche?matricule=1260219&province=fianarantsoa
+GET /api/bacc/recherche?nom=RAKOTO&province=antananarivo&annee=2026
 ```
 
 **Paramètres :**
@@ -29,7 +30,8 @@ GET /api/bacc/recherche?matricule=1260219&province=fianarantsoa
 |-----------|-------------|---------|
 | `nom` | Nom et prénom du candidat | `Miora` |
 | `matricule` | Numéro d'inscription | `1260219` |
-| `province` | Code province | `antsiranana`, `mahajanga`, `toliara`, `toamasina`, `fianarantsoa` |
+| `province` | Code province | `antsiranana`, `mahajanga`, `toliara`, `toamasina`, `fianarantsoa`, `antananarivo` |
+| `annee` | Année de la session, principalement utilisée pour Antananarivo | `2026` |
 
 > ⚠️ Si les deux sont fournis, `matricule` est prioritaire.
 
@@ -69,7 +71,7 @@ GET /api/bacc/provinces
 | Toliara | `toliara` | ✅ Disponible |
 | Toamasina | `toamasina` | ⚠️ Redirigé vers Mahajanga |
 | Fianarantsoa | `fianarantsoa` | ✅ Disponible |
-| Antananarivo | `antananarivo` | ❌ Non disponible |
+| Antananarivo | `antananarivo` | ✅ Scraping de la page officielle |
 
 ## 🔧 Fonctionnement
 
@@ -88,11 +90,14 @@ L'API agit comme un **proxy** entre votre application et les APIs officielles de
 | Mahajanga | `https://mahajanga-api.bacc.digital.gov.mg/api/search` |
 | Toliara | `https://bacc.toliara.digital.gov.mg/api/search` |
 | Fianarantsoa | `https://bacc.univ-fianarantsoa.mg/api/search/{type}/{terme}` où `{type}` = `name` ou `num` |
+| Antananarivo | `https://www.univ-antananarivo.mg/resultats-bac` — extraction du tableau rendu ou du tableau embarqué dans le bundle React |
 
 > ℹ️ **Note sur Fianarantsoa** : L'API de l'Université de Fianarantsoa utilise un format différent :
 > - Recherche par nom : `GET /api/search/name/{nom}` (sensible à la casse)
 > - Recherche par matricule : `GET /api/search/num/{num}`
 > - Réponse brute : `{"count": N, "bacc": [{num, nom, mention, serie, centre, resultat}]}`
+>
+> **Note sur Antananarivo** : la page de l’Université est une application React. Le scraper télécharge la page, tente d’abord d’extraire un tableau HTML, puis inspecte le bundle JavaScript référencé par la page pour lire les résultats embarqués. Les données sont mises en cache pendant cinq minutes et filtrées localement par matricule, nom/prénoms et année. Lorsque la source n’a encore publié aucun candidat, l’API retourne une réponse `OK` avec `results: []` et le message correspondant.
 
 ## 📦 Déploiement Vercel
 

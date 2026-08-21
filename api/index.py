@@ -15,6 +15,13 @@ from flask import Flask, jsonify, request
 import requests
 from flask_cors import CORS
 
+try:
+    from .antananarivo import SOURCE_URL as ANTANANARIVO_SOURCE_URL
+    from .antananarivo import search_results as search_antananarivo_results
+except ImportError:  # lancement direct via server.py / environnement Vercel
+    from antananarivo import SOURCE_URL as ANTANANARIVO_SOURCE_URL
+    from antananarivo import search_results as search_antananarivo_results
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -26,6 +33,7 @@ PROVINCE_APIS = {
     "toamasina":   "https://mahajanga-api.bacc.digital.gov.mg/api",
     "toliara":     "https://bacc.toliara.digital.gov.mg/api",
     "fianarantsoa":"https://bacc.univ-fianarantsoa.mg/api",
+    "antananarivo": ANTANANARIVO_SOURCE_URL,
 }
 
 PROVINCE_INFO = {
@@ -34,7 +42,7 @@ PROVINCE_INFO = {
     "toamasina":   {"nom": "Toamasina",             "universite": "Oniversite Toamasina",     "disponible": False, "note": "Redirigé vers Mahajanga"},
     "toliara":     {"nom": "Toliara",               "universite": "Oniversite Toliara",       "disponible": True},
     "fianarantsoa":{"nom": "Fianarantsoa",          "universite": "Oniversite Fianarantsoa",  "disponible": True},
-    "antananarivo":{"nom": "Antananarivo",          "universite": "Oniversite Antananarivo",  "disponible": False, "note": "Non disponible"},
+    "antananarivo":{"nom": "Antananarivo",          "universite": "Oniversite Antananarivo",  "disponible": True, "note": "Scraping de la page officielle de l'Université d'Antananarivo"},
 }
 
 session = requests.Session()
@@ -119,7 +127,7 @@ def search_fianarantsoa(search_term: str, mode: str = "nom") -> dict:
         return {"error": str(e), "status": "ERROR"}
 
 
-def search_bacc(province: str, search_term: str, mode: str = "nom") -> dict:
+def search_bacc(province: str, search_term: str, mode: str = "nom", annee: str | None = None) -> dict:
     """Effectue une recherche dans l'API du Baccalauréat."""
     if province not in PROVINCE_APIS:
         return {"error": f"Province inconnue: {province}", "status": "ERROR"}
@@ -127,6 +135,11 @@ def search_bacc(province: str, search_term: str, mode: str = "nom") -> dict:
     # Fianarantsoa a son propre format d'API
     if province == "fianarantsoa":
         return search_fianarantsoa(search_term, mode)
+
+    # Antananarivo publie actuellement ses données dans le front-end React
+    # de l'Université : on scrape la page et son bundle, puis on filtre localement.
+    if province == "antananarivo":
+        return search_antananarivo_results(session, search_term, mode, annee)
 
     api_base = PROVINCE_APIS[province]
     key = generate_key(search_term)
@@ -174,16 +187,17 @@ def search_bacc(province: str, search_term: str, mode: str = "nom") -> dict:
 def index():
     return jsonify({
         "api": "Bacc Madagascar - API REST",
-        "version": "1.1.0",
+        "version": "1.2.0",
         "description": "API pour consulter les résultats du Baccalauréat à Madagascar",
         "source": "https://bacc.digital.gov.mg/",
         "endpoints": {
-            "GET /api/bacc/recherche": "Rechercher par nom ou matricule (avec pagination page/per_page)",
+            "GET /api/bacc/recherche": "Rechercher par nom ou matricule (avec pagination page/per_page et filtre annee)",
             "GET /api/bacc/provinces": "Lister les provinces disponibles",
         },
         "exemples": {
             "par_nom": "/api/bacc/recherche?nom=Miora&province=fianarantsoa",
             "par_matricule": "/api/bacc/recherche?matricule=1260219&province=fianarantsoa",
+            "antananarivo": "/api/bacc/recherche?nom=RAKOTO&province=antananarivo&annee=2026",
             "pagination": "/api/bacc/recherche?nom=Miora&province=fianarantsoa&page=2&per_page=10",
         },
         "provinces_disponibles": list(PROVINCE_APIS.keys()),
@@ -225,6 +239,7 @@ def paginate_results(results: list, page: int, per_page: int) -> dict:
 def recherche():
     nom = request.args.get("nom", "").strip()
     matricule = request.args.get("matricule", "").strip()
+    annee = request.args.get("annee", "").strip()
     province = request.args.get("province", "").strip().lower()
     try:
         page = int(request.args.get("page", 1) or 1)
@@ -269,7 +284,7 @@ def recherche():
             search_term = normalize_name(nom)
         mode = "nom"
 
-    result = search_bacc(province, search_term, mode)
+    result = search_bacc(province, search_term, mode, annee or None)
 
     # Appliquer la pagination si la recherche a réussi
     if result.get("status") == "OK" and isinstance(result.get("results"), list):
@@ -294,7 +309,8 @@ def provinces():
                 "universite": info["universite"],
                 "disponible": info["disponible"],
                 "note": info.get("note"),
-                "api": PROVINCE_APIS.get(code)
+                "api": PROVINCE_APIS.get(code),
+                "source": PROVINCE_APIS.get(code)
             }
             for code, info in PROVINCE_INFO.items()
         ]
